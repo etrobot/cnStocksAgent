@@ -1,6 +1,5 @@
-from fasthtml.common import *
+from fasthtml.common import Titled, Form, Group, Input, Button, Div, H3, P, Script, EventStream, sse_message, Details, Summary, serve,fast_app
 from graph import generate_response_graph
-import time
 from asyncio import sleep
 
 hdrs = (Script(src="https://unpkg.com/htmx-ext-sse@2.2.1/sse.js"),)
@@ -16,11 +15,12 @@ def get():
             )
         ),
         Div(id="response-container", 
-                             hx_ext="sse", 
-                             sse_connect="",  # SSE connection path will be dynamically set
-                             sse_close="close",
-                             hx_swap="beforeend", 
-                             sse_swap="message")
+            hx_ext="sse", 
+            sse_connect="",  # SSE connection path will be dynamically set
+            sse_close="close",
+            hx_swap="beforeend", 
+            sse_swap="message"
+        )
     )
 
 @rt("/query")
