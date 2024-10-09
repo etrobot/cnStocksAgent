@@ -1,89 +1,81 @@
-import streamlit as st
+from fasthtml.common import *
 from graph import generate_response_graph
-import streamlit_mermaid as stmd
 import time
+from asyncio import sleep
 
-def main():
-    st.set_page_config(page_title="g1 prototype", page_icon="🧠", layout="wide")
+# 添加SSE相关的脚本
+hdrs = (Script(src="https://unpkg.com/htmx-ext-sse@2.2.1/sse.js"),)
+app, rt = fast_app(hdrs=hdrs)
+
+# 在文件顶部添加全局变量声明
+current_query = None
+
+@rt("/")
+def get():
+    response_container = Div(id="response-container")
+    return Titled("o1graph: 使用Langgraph创建o1类推理链",
+        # ... 保持原有内容不变 ...
+        Form(method="post", action="/query", hx_post="/query", hx_target="#response-container")(
+            Group(
+                Input(name="user_query", placeholder="例如,单词'strawberry'中有多少个'r'?"),
+                Button("Go", type="submit")
+            )
+        ),
+        response_container
+    )
+
+@rt("/query")
+def post(user_query: str):
+    global current_query
+    current_query = user_query
+    return Div(id="response-container", 
+            hx_ext="sse", 
+            sse_connect="/query-stream", 
+            sse_close="close",
+            hx_swap="beforeend",
+            sse_swap="message"
+        )
+
+async def response_generator():
+    global current_query
+    app = generate_response_graph()
+    if not current_query:
+        yield 'event: close\ndata:\n\n'
+        return
     
-    st.title("o1graph: Using Langgraph to create o1-like reasoning chains")
+    rendered_steps = set()  # 用于跟踪已渲染的步骤
     
-    st.markdown("""
-    This is an early prototype of using prompting to create o1-like reasoning chains to improve LLM output accuracy. It is not perfect and accuracy has yet to be formally evaluated.
-    The inspiration for [o1graph](https://github.com/etrobot/o1graph) is the [groq-g1](https://github.com/bklieger-groq/g1) project.
-    """)
+    for result in app.stream({"message": current_query}):
+        current_node = list(result.keys())[0]
+        if 'initialize' in result:
+            continue
+        elif 'process_step' in result or ('condition_node' in result and 'Final Answer' in result['condition_node']['steps'][-1]):
+            steps = result.get('process_step', {}).get('steps') or result['condition_node']['steps']
+            for step in steps:
+                title, content, thinking_time = step
+                step_key = f"{title}:{content[:50]}"  # 创建一个唯一的步骤标识符
+                if step_key not in rendered_steps:
+                    yield sse_message(
+                        Details(
+                            Summary(f"{title} ({thinking_time:.2f} 秒)"),
+                            P(content)
+                        )
+                    )
+                    rendered_steps.add(step_key)
+                    await sleep(0.1)  # 添加小延迟以模拟逐步更新
+            
+            if 'condition_node' in result:
+                final_step = steps[-1]
+                yield sse_message(
+                    H3("最终答案"),
+                    P(final_step[1])
+                )
+                total_thinking_time = result['condition_node']['total_thinking_time']
+                yield sse_message(P(f"总思考时间: {total_thinking_time:.2f} 秒"))
+    yield 'event: close\ndata:\n\n'
 
-    mermaid_base = """
-    graph TD;
-        __start__([<p>__start__</p>])
-        initialize(Initialize)
-        process_step(Process Step)
-        condition_node(Final Answer or Loop)
-        __end__([<p>__end__</p>])
-        __start__ --> initialize;
-        condition_node --> __end__;
-        initialize -.-> process_step;
-        process_step -.-> condition_node;
-        condition_node -.-> process_step;
-        style {current_node} stroke:#23b883,stroke-width:8px
-    """
+@rt("/query-stream")
+async def get():
+    return EventStream(response_generator())
 
-    # Create a placeholder for the Mermaid chart
-    sidebar_mermaid = st.sidebar.empty()
-
-    # Initialize a counter for unique keys
-    if 'mermaid_counter' not in st.session_state:
-        st.session_state.mermaid_counter = 0
-
-    # Function to update the Mermaid chart
-    def update_mermaid(current_node):
-        mermaid_code = mermaid_base.format(current_node=current_node)
-        with sidebar_mermaid:
-            stmd.st_mermaid(mermaid_code, height="500px", key=f"mermaid_{st.session_state.mermaid_counter}")
-            st.session_state.mermaid_counter += 1
-
-
-    # Initial state
-    update_mermaid("__start__")
-
-    # Text input for user query
-    user_query = st.text_input("Enter your query:", placeholder="For example, how many 'r's are in the word 'strawberry'?")
-    
-    if user_query:
-        st.write("Generating response...")
-        
-        # Create empty elements to hold the generated text and total time
-        response_container = st.empty()
-        time_container = st.empty()
-        
-        # Generate and display the response
-        app = generate_response_graph()
-        for result in app.stream({"message": user_query}):
-            current_node = list(result.keys())[0]
-            with response_container.container():
-                if 'initialize' in result:
-                    continue
-                elif 'process_step' in result:
-                    update_mermaid(current_node)
-                    steps = result['process_step']['steps']
-                    for step in steps:
-                        title, content, thinking_time = step
-                        with st.expander(f"{title} ({thinking_time:.2f} seconds)", expanded=True):
-                            st.markdown(content, unsafe_allow_html=True)
-                elif 'condition_node' in result and 'Final Answer' in result['condition_node']['steps'][-1]:
-                    steps = result['condition_node']['steps']
-                    for step in steps:
-                        title, content, thinking_time = step
-                        with st.expander(f"{title} ({thinking_time:.2f} seconds)", expanded=True):
-                            st.markdown(str(content), unsafe_allow_html=True)
-                    final_step = steps[-1]
-                    st.markdown(f"### Final Answer")
-                    content = final_step[1]
-                    st.markdown(str(content), unsafe_allow_html=True)
-                    total_thinking_time = result['condition_node']['total_thinking_time']
-                    time_container.markdown(f"**Total thinking time: {total_thinking_time:.2f} seconds**")
-
-        update_mermaid("__end__")
-
-if __name__ == "__main__":
-    main()
+serve()
