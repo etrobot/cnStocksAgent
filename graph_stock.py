@@ -6,7 +6,7 @@ from fasthtml.common import serve, fast_app
 from fh_plotly import plotly_headers, plotly2fasthtml
 import asyncio
 import os
-from data_fetcher import get_index_data, save_data_to_csv
+from data_fetcher import get_index_data, save_data_to_csv, process_highdays_data
 
 # 创建FastHTML应用
 app, rt = fast_app(hdrs=plotly_headers)
@@ -54,37 +54,41 @@ async def fetch_data_api():
 async def fetch_and_save_data():
     merged_df = get_index_data()
     save_data_to_csv(merged_df)
+    # 添加处理 highdays 数据的调用
+    process_highdays_data()
 
 # 修改主页面函数,从CSV读取数据
 @rt('/')
 def index():
-    # 检查CSV文件是否存在
-    if not os.path.exists('index_changes.csv') or not os.path.exists('index_trading_amounts.csv'):
-        # 如果文件不存在,返回提示信息
-        return "数据文件不存在,请先访问 /fetch_data 接口抓取数据"
+    # 检查所有必要的 CSV 文件是否存在
+    required_files = ['index_changes.csv', 'index_trading_amounts.csv', 'highdays_counts.csv']
+    missing_files = [file for file in required_files if not os.path.exists(file)]
+    
+    if missing_files:
+        return f"以下数据文件不存在: {', '.join(missing_files)}。请先访问 /fetch_data 接口抓取数据"
     
     try:
-        # 尝试从CSV读取数据
+        # 读取数据
         change_df = pd.read_csv('index_changes.csv')
         amount_df = pd.read_csv('index_trading_amounts.csv')
+        highdays_df = pd.read_csv('highdays_counts.csv')
         
-        # 创建涨跌幅折线图
-        change_chart = create_line_chart(change_df, '指数涨跌幅走势', '涨跌幅 (%)')
-        
-        # 创建成交额折线图
-        amount_chart = create_line_chart(amount_df, '指数成交额走势', '成交额')
+        # 创建图表
+        change_chart = create_line_chart(change_df, '指数涨跌幅走势', '涨跌幅 (%)', x_column='日期')
+        amount_chart = create_line_chart(amount_df, '指数成交额走势', '成交额', x_column='日期')
+        highdays_chart = create_line_chart(highdays_df, '每日连续涨停天数分布', '股票数量', x_column='date')
         
         return [
             change_chart,
-            amount_chart
+            amount_chart,
+            highdays_chart
         ]
     except Exception as e:
-        # 如果读取或处理数据时出错,返回错误信息
         return f"读取或处理数据时出错: {str(e)}"
 
-# 添加绘图函数
-def create_line_chart(df, title, y_axis_title):
-    fig = px.line(df, x='日期', y=df.columns[1:], title=title)
+# 修改绘图函数
+def create_line_chart(df, title, y_axis_title, x_column='date'):
+    fig = px.line(df, x=x_column, y=df.columns[df.columns != x_column], title=title)
     fig.update_layout(yaxis_title=y_axis_title)
     return plotly2fasthtml(fig)
 
