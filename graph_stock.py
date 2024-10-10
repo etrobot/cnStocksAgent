@@ -4,6 +4,12 @@ from datetime import datetime, timedelta
 import plotly.express as px
 from fasthtml.common import serve, fast_app
 from fh_plotly import plotly_headers, plotly2fasthtml
+import asyncio
+import os
+from data_fetcher import get_index_data, save_data_to_csv
+
+# 创建FastHTML应用
+app, rt = fast_app(hdrs=plotly_headers)
 
 def download_index_data(index_codes, start_date, end_date):
     data = {}
@@ -39,43 +45,47 @@ def get_index_data():
 
     return merged_df
 
-# 获取指数数据
-merged_df = get_index_data()
+# 添加新的API函数来抓取数据并保存CSV
+@rt('/fetch_data')
+async def fetch_data_api():
+    asyncio.create_task(fetch_and_save_data())
+    return "数据抓取已开始,请稍后查看结果"
 
-# 创建涨跌幅表
-change_df = merged_df[['date', 'sh000300_change', 'sh000905_change', 'sh000852_change']]
-change_df.columns = ['日期', '沪深300涨跌幅', '中证500涨跌幅', '中证1000涨跌幅']
+async def fetch_and_save_data():
+    merged_df = get_index_data()
+    save_data_to_csv(merged_df)
 
-# 创建成交额表
-amount_df = merged_df[['date', 'sh000300_amount', 'sh000905_amount', 'sh000852_amount']]
-amount_df.columns = ['日期', '沪深300成交额', '中证500成交额', '中证1000成交额']
+# 修改主页面函数,从CSV读取数据
+@rt('/')
+def index():
+    # 检查CSV文件是否存在
+    if not os.path.exists('index_changes.csv') or not os.path.exists('index_trading_amounts.csv'):
+        # 如果文件不存在,返回提示信息
+        return "数据文件不存在,请先访问 /fetch_data 接口抓取数据"
+    
+    try:
+        # 尝试从CSV读取数据
+        change_df = pd.read_csv('index_changes.csv')
+        amount_df = pd.read_csv('index_trading_amounts.csv')
+        
+        # 创建涨跌幅折线图
+        change_chart = create_line_chart(change_df, '指数涨跌幅走势', '涨跌幅 (%)')
+        
+        # 创建成交额折线图
+        amount_chart = create_line_chart(amount_df, '指数成交额走势', '成交额')
+        
+        return [
+            change_chart,
+            amount_chart
+        ]
+    except Exception as e:
+        # 如果读取或处理数据时出错,返回错误信息
+        return f"读取或处理数据时出错: {str(e)}"
 
 # 添加绘图函数
 def create_line_chart(df, title, y_axis_title):
     fig = px.line(df, x='日期', y=df.columns[1:], title=title)
     fig.update_layout(yaxis_title=y_axis_title)
     return plotly2fasthtml(fig)
-
-# 创建FastHTML应用
-app, rt = fast_app(hdrs=plotly_headers)
-
-@rt('/')  # Change this line
-def index():
-    # 创建涨跌幅折线图
-    change_chart = create_line_chart(change_df, '指数涨跌幅走势', '涨跌幅 (%)')
-    
-    # 创建成交额折线图
-    amount_chart = create_line_chart(amount_df, '指数成交额走势', '成交额')
-    
-    return [
-        change_chart,
-        amount_chart
-    ]
-
-# 保存到CSV文件
-change_df.to_csv('index_changes.csv', index=False, encoding='utf-8-sig')
-amount_df.to_csv('index_trading_amounts.csv', index=False, encoding='utf-8-sig')
-
-print("数据已保存到 index_changes.csv 和 index_trading_amounts.csv 文件中。")
 
 serve()
