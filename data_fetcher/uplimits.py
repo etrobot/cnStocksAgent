@@ -3,6 +3,8 @@ import pandas as pd
 import akshare as ak
 from datetime import datetime, timedelta
 
+REF='https://data.10jqka.com.cn/datacenterph/limitup/limtupInfo.html'
+
 def get_default_dates(start_date=None, end_date=None):
     if end_date is None:
         end_date = datetime.now()
@@ -36,14 +38,13 @@ def fetch_continuous_up_limit_data(date=None):
             
             # Merge the two dataframes based on 'code' field
             merged_df = pd.merge(df, uplimit_data, left_on='code', right_on='code', how='left')
-            
+            output = merged_df[['code','name_x','continue_num','limit_up_type','reason_type']]
             # Save the merged dataframe as CSV
             csv_filename = f'continuous_up_limit_data.csv'
-            merged_df[['code','name_x','continue_num','limit_up_type','reason_type']].to_csv(csv_filename, index=False, encoding='utf_8_sig')
-            
+            output.to_csv(csv_filename, index=False, encoding='utf_8_sig')            
             print(f"Data saved to {csv_filename}")
-            merged_df.to_csv('continuous_up_limit_data.csv', index=False, encoding='utf_8_sig')
-            return merged_df
+
+            return output.to_csv()
     return None
 
 def uplimit10jqka(date=None):
@@ -61,7 +62,7 @@ def uplimit10jqka(date=None):
         'Sec-Fetch-Mode': 'cors',
         'Host': 'data.10jqka.com.cn',
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
-        'Referer': 'https://data.10jqka.com.cn.cn/datacenterph/limitup/limtupInfo.html',
+        'Referer': REF,
         'Connection': 'keep-alive',
     }
 
@@ -86,4 +87,5 @@ def uplimit10jqka(date=None):
     df = pd.DataFrame(result)
     return df
 
-fetch_continuous_up_limit_data()
+if __name__ == "__main__":
+    fetch_continuous_up_limit_data()

@@ -3,6 +3,8 @@ import akshare as ak
 import pandas as pd
 import requests
 
+REF='https://gubatopic.eastmoney.com/'
+
 def get_default_dates(start_date=None, end_date=None):
     if end_date is None:
         end_date = datetime.now()
@@ -15,10 +17,11 @@ def get_trading_days(start_date=None, end_date=None):
     trading_days = ak.stock_zh_index_daily_em(symbol="sh000001", start_date=start_date.strftime('%Y%m%d'), end_date=end_date.strftime('%Y%m%d'))
     trading_days = pd.to_datetime(trading_days['date']).dt.strftime('%Y%m%d').tolist()
     return trading_days
-def eastmoney_topics():
+
+def getTopics():
     headers = {
         'User-Agent': 'Mozilla',
-        'Referer': 'https://gubatopic.eastmoney.com/',
+        'Referer': REF,
     }
     url = 'https://gubatopic.eastmoney.com/interface/GetData.aspx?path=newtopic/api/Topic/HomePageListRead'
     data = {
@@ -58,4 +61,5 @@ def eastmoney_topics():
 
     return "\n".join(parsed_results)
 
-print(eastmoney_topics())
+if __name__ == "__main__":
+    print(getTopics())

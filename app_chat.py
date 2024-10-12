@@ -14,6 +14,7 @@ def get():
     return Titled("AI短线复盘(纯属娱乐)",
         Form(method="post", action="/query", hx_post="/query", hx_target="#response-container")(
             Group(
+                Input(name="user_query", placeholder="For example, how many 'r' are in the word 'strawberry'?"),
                 Button("Go", type="submit")
             )
         ),
@@ -26,30 +27,27 @@ def get():
     )
 
 @rt("/query")
-def post():
+def post(user_query: str):
     return Div(id="response-container", 
             hx_ext="sse", 
-            sse_connect=f"/query-stream", 
+            sse_connect=f"/query-stream?query={user_query}", 
             sse_close="close",
             hx_swap="beforeend",
             sse_swap="message"
         )
 
-async def response_generator():
+async def response_generator(user_query: str):
     app = reviewAgent()
+    if not user_query:
+        yield 'event: close\ndata:\n\n'
+        return
         
     try:
-        for node in app.stream({"data": ''}):
+        for node in app.stream({"data": user_query}):
             result = list(node.values())[0]
-            if 'url' in result:
-                yield sse_message(Details(
-                    Summary('获取数据 '+result['url']),
-                    Iframe(src=result['url'], width="100%", height="400px"),
-                    # open=True
-                ))
             if 'review' in result:
                 yield sse_message(Details(
-                    Summary("分析"),
+                    Summary("Review"),
                     render_md(result['review']),
                     open=True
                 ))
@@ -68,7 +66,7 @@ def render_md(md, css='.markdown-body {background-color: unset !important; color
     return Zero_md(css_template, Script(md, type="text/markdown"))
 
 @rt("/query-stream")
-async def get():
-    return EventStream(response_generator())
+async def get(query: str):
+    return EventStream(response_generator(query))
 
 serve()
