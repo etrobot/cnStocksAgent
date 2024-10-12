@@ -38,21 +38,13 @@ def post(user_query: str):
 
 async def response_generator(user_query: str):
     app = reviewAgent()
-    if not user_query:
-        yield 'event: close\ndata:\n\n'
-        return
+    # if not user_query:
+    #     yield 'event: close\ndata:\n\n'
+    #     return
         
     try:
-        for node in app.stream({"data": user_query}):
-            result = list(node.values())[0]
-            if 'review' in result:
-                yield sse_message(Details(
-                    Summary("Review"),
-                    render_md(result['review']),
-                    open=True
-                ))
-            
-            await sleep(0.1)
+        async for msg, metadata in app.astream({"messages": [{"role": "user", "content": user_query}]}, stream_mode="messages"):
+             yield sse_message(msg.content)
     except Exception as e:
         yield sse_message(
             H3("错误"),

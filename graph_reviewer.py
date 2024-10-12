@@ -1,13 +1,17 @@
 import os
 from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START,END
+from langgraph.graph.message import add_messages
 from langchain_openai import ChatOpenAI
 from data_fetcher import guba_topics,uplimits
 import dotenv
+from typing import Annotated
+
 dotenv.load_dotenv()
 
 
 class State(TypedDict):
+    messages: Annotated[list, add_messages]
     url: str = ''
     data: str = ''
     review: str = ''
@@ -50,20 +54,33 @@ def reviewAgent():
         {"role": "user", "content": state['review']},
         ]
         return { "review":llm.invoke(messages).content}
+    
+    def chatOrReview(state: State):
+        if len(state['messages']) < 2:
+            return 'fetchDataNode'
+        else:
+            return 'chatNode'
+        
+    def chatNode(state: State):
+        return {"messages":state['messages']+llm.invoke(state['messages']).content}
+
 
     graph_builder.add_node("fetchDataNode", fetchDataNode)
     graph_builder.add_node("fetchNewsNode", fetchNewsNode)
     graph_builder.add_node("reviewNode", reviewNode)
     graph_builder.add_node("recommendNode", recommendNode)
+    graph_builder.add_node("chatNode", chatNode)
 
-    graph_builder.add_edge(START, "fetchDataNode")
+    graph_builder.add_conditional_edges(START, chatOrReview)
     graph_builder.add_edge("fetchDataNode", "fetchNewsNode")
     graph_builder.add_edge("fetchNewsNode", "reviewNode")
     graph_builder.add_edge("reviewNode", "recommendNode")
+    graph_builder.add_edge("chatNode", END)
     graph_builder.add_edge("recommendNode", END)
 
     app = graph_builder.compile()
     return app
 
-if __name__ == "__main__":
-    reviewAgent().invoke(input={'data':''}, debug=True)
+# if __name__ == "__main__":
+#     print(reviewAgent().get_graph().draw_mermaid())
+#     reviewAgent().invoke({"messages":[{'role':'user','content':''}]}, {"recursion_limit": 10},debug=True)
