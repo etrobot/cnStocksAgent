@@ -18,7 +18,10 @@ class State(TypedDict):
 
 
 def reviewAgent():
-
+    systemMsg = {
+            "role": "system",
+            "content":"你是一个A股交易达人，善于从短线交易的角度分析连板个股的题材是悲观避险导致还是整体市场推动的结果，得出复盘结论应该关注哪些方向和个股，注意股票必须带链接，比如[中芯国际](https://xueqiu.com/S/SH688981),注意链接中6开头是/S/SH,其他是/S/SZ开头",
+    }
     llm = ChatOpenAI(
             model=os.getenv("MODEL", "gpt-4o-mini"),
             api_key=os.getenv("OPENAI_KEY"),
@@ -37,11 +40,8 @@ def reviewAgent():
 
     def reviewNode(state: State):
         messages = [
-        {
-            "role": "system",
-            "content":"你是一个A股交易达人，请根据信息从短线交易的角度分析连板个股的题材是悲观避险导致还是整体市场推动的结果，得出复盘结论应该关注哪些方向",
-        },
-        {"role": "user", "content": state['data']},
+            systemMsg,
+             {"role": "user", "content": state['data']},
         ]
         return {"review":llm.invoke(messages).content}
     
@@ -49,20 +49,20 @@ def reviewAgent():
         messages = [
         {
             "role": "system",
-            "content":"你是一个A股交易达人，参考当前行情，根据你的知识储备，挑选有足够的想象空间（新科技/新药/新经济模式等）的成长股和周期股，避开基金经理喜欢的绩优股或大盘股或明星股，推荐三五个可以买入的股票, 股票必须带雪球链接，比如[中芯国际](https://xueqiu.com/S/SH688981),注意链接中6开头是/S/SH,其他是/S/SZ开头",
+            "content":"你是一个A股交易达人，参考当前行情，根据你的知识储备，挑选有足够的想象空间（新科技/新药/新经济模式等）的成长股和周期股，避开基金经理喜欢的绩优股或大盘股或明星股，推荐三五个可以买入的股票, 股票必须带链接，比如[中芯国际](https://xueqiu.com/S/SH688981),注意链接中6开头是/S/SH,其他是/S/SZ开头",
         },
         {"role": "user", "content": state['review']},
         ]
         return { "review":llm.invoke(messages).content}
     
     def chatOrReview(state: State):
-        if len(state['messages']) < 2:
+        if len(state['messages']) <= 2:
             return 'fetchDataNode'
         else:
             return 'chatNode'
         
     def chatNode(state: State):
-        return {"messages":state['messages']+llm.invoke(state['messages']).content}
+        return {"review":llm.invoke([systemMsg]+state['messages']).content}
 
 
     graph_builder.add_node("fetchDataNode", fetchDataNode)
@@ -81,6 +81,6 @@ def reviewAgent():
     app = graph_builder.compile()
     return app
 
-# if __name__ == "__main__":
-#     print(reviewAgent().get_graph().draw_mermaid())
-#     reviewAgent().invoke({"messages":[{'role':'user','content':''}]}, {"recursion_limit": 10},debug=True)
+if __name__ == "__main__":
+    print(reviewAgent().get_graph().draw_mermaid())
+    # reviewAgent().invoke({"messages":[{'role':'user','content':''}]}, {"recursion_limit": 10},debug=True)
