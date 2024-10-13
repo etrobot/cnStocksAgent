@@ -1,6 +1,7 @@
 # 卧龙AI炒家
 
 这是一个基于LangGraph和FastHTML的A股大模型Agent
+<img width="819" alt="Screenshot 2024-10-13 at 11 30 29 PM" src="https://github.com/user-attachments/assets/f18758a9-e3c5-4f6d-ace5-5f6eef7624e3">
 
 ```mermaid
 graph TD;
@@ -22,7 +23,6 @@ graph TD;
         classDef first fill-opacity:0
         classDef last fill:#bfb6fc
 ```
-
 ## 快速开始
 
 1. 重命名`.env_example`为`.env`并填写必要信息。具体说明如下：
@@ -48,7 +48,7 @@ graph TD;
 
 ## 功能特点
 
-- 获取同花顺连板和东财古巴话题
+- 获取同花顺连板和东财股吧话题
 - 支持显示数据源iframe
 - 实时流式响应
 - Markdown渲染支持
