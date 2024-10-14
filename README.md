@@ -19,9 +19,6 @@ graph TD;
         reviewNode --> recommendNode;
         __start__ -.-> fetchDataNode;
         __start__ -.-> chatNode;
-        classDef default fill:#f2f0ff,line-height:1.2
-        classDef first fill-opacity:0
-        classDef last fill:#bfb6fc
 ```
 ## 快速开始
 
