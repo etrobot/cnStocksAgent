@@ -94,14 +94,14 @@ async def response_generator(user_query: str):
              if event["event"] == "on_chat_model_stream":
                 data = event["data"]
                 if data["chunk"].content:
-                    if data["chunk"].content.startswith("\n\n"):
+                    if data["chunk"].content.startswith("###"):
                         accumulating = True
                         accumulated_content = data["chunk"].content
                     elif accumulating:
                         accumulated_content += data["chunk"].content
-                        if "\n\n" in accumulated_content:
-                            parts = accumulated_content.split("\n\n")
-                            to_render = "\n\n".join(parts[:-1])
+                        if "###" in accumulated_content:
+                            parts = accumulated_content.split("###")
+                            to_render = "###".join(parts[:-1])
                             yield sse_message(Div(to_render, id="markdown-content", cls="marked"))
                             accumulated_content = parts[-1]
                     else:
